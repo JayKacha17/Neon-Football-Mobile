@@ -166,52 +166,71 @@ const os = require('os');
 const { exec } = require('child_process');
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n--- NEON FOOTBALL PARTY ---`);
-    console.log(`Server running on port ${PORT}`);
+    console.log('\n========================================================');
+    console.log('       ⚽ NEON FOOTBALL MOBILE - OFFLINE LAN SERVER ⚽');
+    console.log('========================================================');
+    console.log('Server is running on port: ' + PORT);
     
     // Find local IP addresses, filtering out VirtualBox, WSL, and VPNs
     const interfaces = os.networkInterfaces();
     let bestIp = 'localhost';
+    const allIps = [];
     
     for (const name of Object.keys(interfaces)) {
-        // Skip virtual adapters which cause "unable to reach" errors
-        if (name.toLowerCase().includes('vbox') || 
-            name.toLowerCase().includes('vmware') || 
-            name.toLowerCase().includes('wsl') || 
-            name.toLowerCase().includes('virtual') ||
-            name.toLowerCase().includes('tailscale') ||
-            name.toLowerCase().includes('vpn')) {
-            continue;
-        }
-        
         for (const iface of interfaces[name]) {
             if (iface.family === 'IPv4' && !iface.internal) {
-                bestIp = iface.address;
-                break;
+                allIps.push({ name, ip: iface.address });
+                // Prefer Wi-Fi or Ethernet
+                const lower = name.toLowerCase();
+                if (!lower.includes('vbox') && 
+                    !lower.includes('vmware') && 
+                    !lower.includes('wsl') && 
+                    !lower.includes('virtual') &&
+                    !lower.includes('tailscale') &&
+                    !lower.includes('vpn') &&
+                    bestIp === 'localhost') {
+                    bestIp = iface.address;
+                }
             }
         }
-        if (bestIp !== 'localhost') break;
+    }
+
+    if (bestIp === 'localhost' && allIps.length > 0) {
+        bestIp = allIps[0].ip;
     }
     
-    const localUrl = \`http://\${bestIp}:\${PORT}\`;
-    console.log(\`\nHost Screen running at: \${localUrl}\`);
-    console.log(\`\nIf phones cannot connect, ensure your Windows Network is set to 'Private' and Node.js is allowed through your Firewall!\`);
-    console.log(\`---------------------------\n\`);
+    const localUrl = 'http://' + bestIp + ':' + PORT;
+    const mobileUrl = localUrl + '/mobile';
     
-    // Automatically open the correct Wi-Fi IP in the Host's browser if running locally
+    console.log('\n📱 PLAY ON MOBILE (Phone / Tablet):');
+    console.log('   -> ' + mobileUrl);
+    console.log('\n🖥️ HOST SCREEN (PC / TV / Laptop):');
+    console.log('   -> ' + localUrl + '/game');
+    console.log('   -> http://localhost:' + PORT + '/game');
+
+    if (allIps.length > 1) {
+        console.log('\nAll detected network IPs:');
+        allIps.forEach(item => {
+            console.log('   • ' + item.name + ': http://' + item.ip + ':' + PORT);
+        });
+    }
+
+    console.log('\n📶 HOTSPOT / WI-FI TIP:');
+    console.log('   Open ' + mobileUrl + ' on any phone connected');
+    console.log('   to the same Wi-Fi or Phone Hotspot (0 Internet Needed!)');
+    console.log('========================================================\n');
+    
+    // Automatically open the mobile game in the host's browser if running locally
     if (process.env.NODE_ENV !== 'production') {
         const platform = process.platform;
         if (platform === 'win32') {
-            exec(\`start \${localUrl}\`);
+            exec('start ' + mobileUrl);
         } else if (platform === 'darwin') {
-            exec(\`open \${localUrl}\`);
+            exec('open ' + mobileUrl);
         } else {
-            // Check if xdg-open exists before trying to run it on Linux
-            exec(\`which xdg-open && xdg-open \${localUrl}\`, (error) => {
-                // Ignore errors gracefully
-            });
+            exec('which xdg-open && xdg-open ' + mobileUrl, () => {});
         }
     } else {
-        console.log(\`\n[Render / Production Mode]: Server successfully started.\n\`);
+        console.log('[Render / Production Mode]: Server successfully started.\n');
     }
 });

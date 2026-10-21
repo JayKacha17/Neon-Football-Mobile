@@ -1,0 +1,17 @@
+{
+  "name": "Neon Football Mobile",
+  "short_name": "NeonFoot",
+  "start_url": "/mobile/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#070714",
+  "theme_color": "#00ffcc",
+  "description": "AAA Offline & LAN Multiplayer Football Game for Mobile",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

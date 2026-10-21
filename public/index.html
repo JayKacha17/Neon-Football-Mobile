@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Football Party</title>
+    <style>
+        :root {
+            --primary: #00ffcc;
+            --secondary: #ff00ff;
+            --bg: #0a0a1a;
+            --panel: rgba(20, 20, 40, 0.8);
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1a1a3a 0%, #050510 100%);
+        }
+        .container {
+            background: var(--panel);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+            text-align: center;
+            border: 1px solid rgba(0, 255, 204, 0.3);
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+        }
+        p {
+            color: #aaa;
+            margin-bottom: 30px;
+            font-size: 1.2rem;
+        }
+        .btn {
+            display: inline-block;
+            background: transparent;
+            color: white;
+            border: 2px solid var(--primary);
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            margin: 10px;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2) inset, 0 0 20px rgba(0, 255, 204, 0.2);
+        }
+        .btn:hover {
+            background: var(--primary);
+            color: var(--bg);
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.6);
+            transform: scale(1.05);
+        }
+        .btn-secondary {
+            border-color: var(--secondary);
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.2) inset, 0 0 20px rgba(255, 0, 255, 0.2);
+        }
+        .btn-secondary:hover {
+            background: var(--secondary);
+            color: white;
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.6);
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Neon Football</h1>
+        <p>Premium Multiplayer Party Game</p>
+        
+        <a href="/mobile" class="btn" style="border-color: #ffaa00; box-shadow: 0 0 20px rgba(255,170,0,0.3); color: #ffaa00;">📱 Play on Mobile (3D Touch)</a>
+        <br>
+        <a href="/game" class="btn">Host Game (PC/TV)</a>
+        <br>
+        <a href="/controller" class="btn btn-secondary">Wireless Controller (Phone)</a>
+        
+        <div class="footer">
+            LAN Wi-Fi • 0 Internet Needed • 2-8 Players
+        </div>
+    </div>
+</body>
+</html>

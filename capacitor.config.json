@@ -1,0 +1,9 @@
+{
+  "appId": "com.neonfootball.mobile",
+  "appName": "Neon Football",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true
+  }
+}

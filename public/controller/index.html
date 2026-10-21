@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Controller - Neon Football</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #0a0a1a; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+        
+        /* Join Screen */
+        #join-screen { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at center, #1a1a3a 0%, #050510 100%); z-index: 100; }
+        .input-group { margin-bottom: 20px; width: 80%; max-width: 300px; }
+        label { display: block; margin-bottom: 5px; color: #00ffcc; font-weight: bold; text-transform: uppercase; }
+        input { width: 100%; padding: 15px; border: 2px solid #333; border-radius: 10px; background: rgba(0,0,0,0.5); color: white; font-size: 1.5rem; text-align: center; text-transform: uppercase; box-sizing: border-box; outline: none; transition: border-color 0.3s; }
+        input:focus { border-color: #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.3); }
+        button { background: transparent; color: white; border: 2px solid #00ffcc; padding: 15px 40px; font-size: 1.5rem; font-weight: bold; border-radius: 50px; cursor: pointer; text-transform: uppercase; transition: all 0.3s; margin-top: 20px; width: 80%; max-width: 300px; }
+        button:active { background: #00ffcc; color: #0a0a1a; }
+        
+        /* Controller Screen */
+        #controller-screen { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: none; flex-direction: row; justify-content: space-between; align-items: center; padding: 20px; box-sizing: border-box; }
+        
+        /* Left: Joystick */
+        #joystick-zone { width: 40%; height: 100%; position: relative; }
+        #joystick-base { position: absolute; bottom: 40px; left: 40px; width: 150px; height: 150px; background: rgba(255,255,255,0.1); border: 2px solid rgba(0,255,204,0.3); border-radius: 50%; }
+        #joystick-stick { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; background: rgba(0,255,204,0.6); border-radius: 50%; box-shadow: 0 0 20px rgba(0,255,204,0.5); transition: background 0.1s; pointer-events: none; }
+        
+        /* Right: Buttons */
+        #action-zone { width: 50%; height: 100%; position: relative; display: flex; justify-content: flex-end; align-items: flex-end; }
+        .action-btn { position: absolute; width: 80px; height: 80px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,0,255,0.3); color: white; font-weight: bold; font-size: 1rem; display: flex; align-items: center; justify-content: center; user-select: none; touch-action: none; text-shadow: 0 0 5px black; transition: all 0.1s; }
+        
+        #btn-shoot { bottom: 40px; right: 140px; width: 90px; height: 90px; border-color: rgba(0,255,204,0.5); background: rgba(0,255,204,0.1); font-size: 1.2rem; }
+        #btn-pass { bottom: 40px; right: 40px; }
+        #btn-sprint { bottom: 140px; right: 40px; }
+        #btn-tackle { bottom: 120px; right: 120px; display: none; } /* Show on defense */
+        
+        .action-btn.active { background: rgba(255,0,255,0.6); box-shadow: 0 0 20px rgba(255,0,255,0.5); transform: scale(0.9); }
+        #btn-shoot.active { background: rgba(0,255,204,0.6); box-shadow: 0 0 20px rgba(0,255,204,0.5); }
+        
+        /* Status Bar */
+        #status-bar { position: absolute; top: 10px; left: 0; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; }
+        #player-info { display: flex; align-items: center; font-weight: bold; font-size: 1.2rem; }
+        .color-indicator { width: 15px; height: 15px; border-radius: 50%; margin-right: 10px; box-shadow: 0 0 10px currentColor; }
+        #connection-status { color: #00ffcc; }
+        
+        /* Portrait Warning */
+        #portrait-warning { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a1a; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; box-sizing: border-box; }
+        @media screen and (orientation: portrait) {
+            #portrait-warning { display: flex; }
+        }
+    </style>
+</head>
+<body>
+    <div id="portrait-warning">
+        <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#00ffcc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+            <path d="M12 18h.01"></path>
+        </svg>
+        <h2 style="color: #00ffcc; margin-top: 20px;">Please Rotate Your Device</h2>
+        <p>Landscape orientation is required to play.</p>
+    </div>
+
+    <div id="join-screen">
+        <h1 style="color: #00ffcc; text-shadow: 0 0 15px #00ffcc; margin-bottom: 40px;">JOIN MATCH</h1>
+        
+        <div class="input-group">
+            <label for="room-input">Room Code</label>
+            <input type="text" id="room-input" maxlength="4" placeholder="ABCD">
+        </div>
+        
+        <div class="input-group">
+            <label for="name-input">Nickname</label>
+            <input type="text" id="name-input" maxlength="10" placeholder="Player">
+        </div>
+        
+        <button id="join-btn">CONNECT</button>
+        <p id="error-msg" style="color: #ff00ff; display: none; margin-top: 15px; font-weight: bold;"></p>
+    </div>
+    
+    <div id="controller-screen">
+        <div id="status-bar">
+            <div id="player-info">
+                <div class="color-indicator" id="player-color" style="background-color: #00ffcc;"></div>
+                <span id="player-name-display">Player</span>
+            </div>
+            <div id="connection-status">🟢 Connected</div>
+        </div>
+        
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-stick"></div>
+            </div>
+        </div>
+        
+        <div id="action-zone">
+            <div class="action-btn" id="btn-pass">PASS</div>
+            <div class="action-btn" id="btn-shoot">SHOOT</div>
+            <div class="action-btn" id="btn-sprint">SPRINT</div>
+            <div class="action-btn" id="btn-tackle">TACKLE</div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="controller.js"></script>
+</body>
+</html>

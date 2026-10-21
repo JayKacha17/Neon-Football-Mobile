@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Neon Football Mobile</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a1a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <!-- 3D Canvas Layer -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer">
+        <!-- Main / Connect Screen -->
+        <div id="menu-screen" class="screen active">
+            <div class="menu-card">
+                <div class="logo-title">NEON FOOTBALL</div>
+                <div class="logo-subtitle">MOBILE LAN EDITION • 0 INTERNET REQUIRED</div>
+
+                <div class="mode-buttons">
+                    <button id="btn-mode-offline" class="cyber-btn primary">
+                        <span class="icon">🤖</span>
+                        <span class="btn-text">
+                            <strong>SOLO OFFLINE MATCH</strong>
+                            <small>Play instantly vs AI • No Wi-Fi needed</small>
+                        </span>
+                    </button>
+
+                    <button id="btn-mode-join" class="cyber-btn secondary">
+                        <span class="icon">📶</span>
+                        <span class="btn-text">
+                            <strong>JOIN LAN / HOTSPOT MATCH</strong>
+                            <small>Connect to friend's Wi-Fi or phone hotspot</small>
+                        </span>
+                    </button>
+
+                    <button id="btn-mode-host" class="cyber-btn accent">
+                        <span class="icon">👑</span>
+                        <span class="btn-text">
+                            <strong>HOST MATCH ON THIS PHONE</strong>
+                            <small>Create room for nearby phones to join</small>
+                        </span>
+                    </button>
+
+                    <button id="btn-hotspot-guide" class="cyber-btn ghost">
+                        <span class="icon">💡</span>
+                        <span>Hotspot Setup Guide (No Data / Internet)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Join LAN Dialog Modal -->
+        <div id="join-modal" class="modal-overlay">
+            <div class="modal-content">
+                <h3>CONNECT TO LAN MATCH</h3>
+                <p class="modal-hint">Ensure both phones are on the same Wi-Fi or Hotspot</p>
+
+                <div class="input-row">
+                    <label>Player Name</label>
+                    <input type="text" id="player-name" maxlength="12" placeholder="Striker">
+                </div>
+
+                <div class="input-row">
+                    <label>Team Selection</label>
+                    <div class="team-selector">
+                        <button type="button" class="team-chip active" data-team="A">Team A (Cyan)</button>
+                        <button type="button" class="team-chip" data-team="B">Team B (Magenta)</button>
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <label>Host IP / Address (Optional if default)</label>
+                    <input type="text" id="host-ip" placeholder="Leave empty for current host">
+                </div>
+
+                <div class="input-row">
+                    <label>Room Code (4 Letters)</label>
+                    <input type="text" id="join-code" maxlength="4" placeholder="ABCD" style="text-transform: uppercase;">
+                </div>
+
+                <div class="modal-actions">
+                    <button id="btn-confirm-join" class="cyber-btn primary">CONNECT & PLAY</button>
+                    <button id="btn-close-join" class="cyber-btn ghost">CANCEL</button>
+                </div>
+                <div id="join-status-msg" class="status-msg"></div>
+            </div>
+        </div>
+
+        <!-- Hotspot Guide Modal -->
+        <div id="guide-modal" class="modal-overlay">
+            <div class="modal-content guide-box">
+                <h3>HOW TO PLAY WITH 0 INTERNET</h3>
+                <div class="guide-steps">
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div class="step-desc">
+                            <strong>Turn on Personal Hotspot</strong> on Phone 1. (Mobile data can be turned completely OFF!).
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div class="step-desc">
+                            <strong>Connect Phone 2 to Phone 1's Wi-Fi Hotspot</strong>. They are now on a direct offline high-speed LAN!
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">3</div>
+                        <div class="step-desc">
+                            Phone 1 starts the game (or PC on same hotspot). Phone 2 taps <strong>JOIN LAN</strong>. You can now play anywhere: on trains, planes, camping, or dorms!
+                        </div>
+                    </div>
+                </div>
+                <button id="btn-close-guide" class="cyber-btn primary">GOT IT!</button>
+            </div>
+        </div>
+
+        <!-- In-Game HUD -->
+        <div id="game-hud">
+            <!-- Top Header Scoreboard -->
+            <div id="hud-top">
+                <div class="hud-team team-a">
+                    <span class="hud-team-tag">CYAN</span>
+                    <span class="hud-score" id="hud-score-a">0</span>
+                </div>
+                <div class="hud-center">
+                    <div id="hud-timer">03:00</div>
+                    <div id="hud-network-badge">⚡ LOCAL OFFLINE</div>
+                </div>
+                <div class="hud-team team-b">
+                    <span class="hud-score" id="hud-score-b">0</span>
+                    <span class="hud-team-tag">MAGENTA</span>
+                </div>
+            </div>
+
+            <!-- Pitch Radar / Minimap -->
+            <div id="pitch-radar-container">
+                <canvas id="pitch-radar" width="120" height="78"></canvas>
+            </div>
+
+            <!-- Goal Announcement Overlay -->
+            <div id="hud-announcer">GOAL!</div>
+
+            <!-- In-Game Touch Controls -->
+            <!-- Left: Virtual Joystick -->
+            <div id="touch-joystick-zone">
+                <div id="virtual-stick-base">
+                    <div id="virtual-stick-thumb"></div>
+                </div>
+            </div>
+
+            <!-- Right: Action Buttons -->
+            <div id="touch-action-zone">
+                <button id="btn-touch-sprint" class="touch-btn sprint-btn">
+                    <span>BOOST</span>
+                    <small>SPRINT</small>
+                </button>
+                <button id="btn-touch-pass" class="touch-btn pass-btn">
+                    <span>PASS</span>
+                    <small>TACKLE</small>
+                </button>
+                <button id="btn-touch-shoot" class="touch-btn shoot-btn">
+                    <span>SHOOT</span>
+                    <small>POWER</small>
+                </button>
+            </div>
+
+            <!-- Top Left Quick Menu Button -->
+            <button id="btn-quit-match" class="icon-btn-quit" title="Leave Match">✕</button>
+        </div>
+    </div>
+
+    <!-- 100% Offline Libraries -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/libs/three.min.js"></script>
+    <script src="/libs/matter.min.js"></script>
+    <script src="/libs/qrcode.min.js"></script>
+    <!-- Mobile Game Core -->
+    <script src="mobile.js"></script>
+</body>
+</html>

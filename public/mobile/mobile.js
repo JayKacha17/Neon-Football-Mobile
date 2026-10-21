@@ -35,6 +35,8 @@ let isResetting = false;
 let targetBall = { x: 0, y: 0 };
 let targetPlayers = {};
 let lastMobileInputSend = 0;
+let offlinePossessionId = null;
+let offlinePossessionCooldown = 0;
 
 // Touch Inputs
 let inputState = {
@@ -117,9 +119,102 @@ function setupMenuHandlers() {
         connectToLanMatch(name, code, customIp);
     });
 
+    // Customize Controls Modal Handlers
+    const customizeModal = document.getElementById('customize-modal');
+    document.getElementById('btn-customize-controls').addEventListener('click', () => {
+        customizeModal.classList.add('active');
+    });
+
+    document.getElementById('btn-close-customize').addEventListener('click', () => {
+        customizeModal.classList.remove('active');
+    });
+
+    // Control Settings Options
+    let tempScale = 1.25;
+    let tempLayout = 'left';
+    let tempBottom = 24;
+
+    document.querySelectorAll('#ctrl-size-selector .opt-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#ctrl-size-selector .opt-chip').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            tempScale = parseFloat(btn.dataset.scale) || 1.25;
+        });
+    });
+
+    document.querySelectorAll('#ctrl-layout-selector .opt-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#ctrl-layout-selector .opt-chip').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            tempLayout = btn.dataset.layout || 'left';
+        });
+    });
+
+    document.querySelectorAll('#ctrl-height-selector .opt-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#ctrl-height-selector .opt-chip').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            tempBottom = parseInt(btn.dataset.bottom, 10) || 24;
+        });
+    });
+
+    document.getElementById('btn-save-controls').addEventListener('click', () => {
+        const config = { scale: tempScale, layout: tempLayout, bottom: tempBottom };
+        try {
+            localStorage.setItem('neon_control_config', JSON.stringify(config));
+        } catch(e) {}
+        applyControlConfig(config);
+        customizeModal.classList.remove('active');
+    });
+
+    // Load saved control configuration
+    loadSavedControls();
+
     document.getElementById('btn-quit-match').addEventListener('click', () => {
         quitMatch();
     });
+}
+
+function loadSavedControls() {
+    try {
+        const saved = localStorage.getItem('neon_control_config');
+        if (saved) {
+            const config = JSON.parse(saved);
+            applyControlConfig(config);
+            
+            // Sync active chips in modal
+            document.querySelectorAll('#ctrl-size-selector .opt-chip').forEach(b => {
+                b.classList.toggle('active', parseFloat(b.dataset.scale) === config.scale);
+            });
+            document.querySelectorAll('#ctrl-layout-selector .opt-chip').forEach(b => {
+                b.classList.toggle('active', b.dataset.layout === config.layout);
+            });
+            document.querySelectorAll('#ctrl-height-selector .opt-chip').forEach(b => {
+                b.classList.toggle('active', parseInt(b.dataset.bottom, 10) === config.bottom);
+            });
+        } else {
+            applyControlConfig({ scale: 1.25, layout: 'left', bottom: 24 });
+        }
+    } catch(e) {
+        applyControlConfig({ scale: 1.25, layout: 'left', bottom: 24 });
+    }
+}
+
+function applyControlConfig(cfg) {
+    const root = document.documentElement;
+    root.style.setProperty('--ctrl-scale', cfg.scale);
+    root.style.setProperty('--ctrl-bottom', `${cfg.bottom}px`);
+    if (cfg.layout === 'right') {
+        root.style.setProperty('--joystick-left', 'auto');
+        root.style.setProperty('--joystick-right', '28px');
+        root.style.setProperty('--action-left', '28px');
+        root.style.setProperty('--action-right', 'auto');
+    } else {
+        root.style.setProperty('--joystick-left', '28px');
+        root.style.setProperty('--joystick-right', 'auto');
+        root.style.setProperty('--action-left', 'auto');
+        root.style.setProperty('--action-right', '28px');
+    }
 }
 
 function showJoinError(msg) {
@@ -294,47 +389,125 @@ function buildGoalPosts() {
     createGoal(PITCH_WIDTH / 2, 0xff00ff, true);
 }
 
-function createPlayerMesh(id, color) {
+function createPlayerMesh(id, color, team = 'A') {
     const group = new THREE.Group();
-    const hex = parseInt(color.replace('#', ''), 16) || 0x00ffcc;
-    const bodyMat = new THREE.MeshStandardMaterial({ color: hex });
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
+    const hex = parseInt((color || (team === 'A' ? '#00ffcc' : '#ff00ff')).replace('#', ''), 16) || 0x00ffcc;
+    const teamColor = new THREE.Color(hex);
+    const shortsColor = new THREE.Color(team === 'A' ? 0x004438 : 0x440038);
 
-    // Torso
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(16, 26, 12), bodyMat);
-    torso.position.z = 24;
+    // PBR Materials
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdcb1, roughness: 0.35, metalness: 0.05 }); 
+    const jerseyMat = new THREE.MeshStandardMaterial({ color: teamColor, roughness: 0.6, emissive: teamColor.clone().multiplyScalar(0.25) });
+    const shortsMat = new THREE.MeshStandardMaterial({ color: shortsColor, roughness: 0.7 });
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x241408, roughness: 0.85 });
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+
+    // Torso / Jersey (Athletic V-Shape)
+    const torsoGeo = new THREE.BoxGeometry(17, 24, 11);
+    const torso = new THREE.Mesh(torsoGeo, jerseyMat);
+    torso.position.z = 26; // Height off ground
+    torso.castShadow = true;
     group.add(torso);
 
-    // Head
-    const head = new THREE.Mesh(new THREE.SphereGeometry(7, 12, 12), skinMat);
-    head.position.set(0, 0, 18);
+    // Kit Number / Stripe on chest
+    const chestStripe = new THREE.Mesh(new THREE.PlaneGeometry(8, 12), stripeMat);
+    chestStripe.position.set(0, 5.6, 0);
+    chestStripe.rotation.x = Math.PI / 2;
+    torso.add(chestStripe);
+
+    // 3D Head with Hair
+    const headGeo = new THREE.SphereGeometry(6.5, 16, 16);
+    const head = new THREE.Mesh(headGeo, skinMat);
+    head.position.set(0, 0, 16);
+    head.castShadow = true;
     torso.add(head);
 
-    // Arms
-    const armGeo = new THREE.BoxGeometry(4, 16, 4);
-    const leftArm = new THREE.Mesh(armGeo, skinMat);
-    leftArm.position.set(-10, 0, 0);
-    torso.add(leftArm);
+    const hairGeo = new THREE.SphereGeometry(6.7, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+    const hair = new THREE.Mesh(hairGeo, hairMat);
+    hair.position.set(0, 0, 1.2);
+    head.add(hair);
 
-    const rightArm = new THREE.Mesh(armGeo, skinMat);
-    rightArm.position.set(10, 0, 0);
-    torso.add(rightArm);
+    // Arms (Sleeves + Forearms)
+    const sleeveGeo = new THREE.BoxGeometry(4.5, 7, 4.5);
+    const forearmGeo = new THREE.BoxGeometry(4, 11, 4);
 
-    // Legs
-    const legGeo = new THREE.BoxGeometry(5, 18, 5);
-    const leftLeg = new THREE.Mesh(legGeo, skinMat);
-    leftLeg.position.set(-4, 0, -20);
-    torso.add(leftLeg);
+    const leftArmGroup = new THREE.Group();
+    leftArmGroup.position.set(-11, 0, 3);
+    const leftSleeve = new THREE.Mesh(sleeveGeo, jerseyMat);
+    leftSleeve.position.set(0, 0, -2);
+    leftArmGroup.add(leftSleeve);
+    const leftForearm = new THREE.Mesh(forearmGeo, skinMat);
+    leftForearm.position.set(0, 0, -10);
+    leftForearm.castShadow = true;
+    leftArmGroup.add(leftForearm);
+    torso.add(leftArmGroup);
 
-    const rightLeg = new THREE.Mesh(legGeo, skinMat);
-    rightLeg.position.set(4, 0, -20);
-    torso.add(rightLeg);
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(11, 0, 3);
+    const rightSleeve = new THREE.Mesh(sleeveGeo, jerseyMat);
+    rightSleeve.position.set(0, 0, -2);
+    rightArmGroup.add(rightSleeve);
+    const rightForearm = new THREE.Mesh(forearmGeo, skinMat);
+    rightForearm.position.set(0, 0, -10);
+    rightForearm.castShadow = true;
+    rightArmGroup.add(rightForearm);
+    torso.add(rightArmGroup);
 
-    group.userData = { torso, leftArm, rightArm, leftLeg, rightLeg, animTime: Math.random() * 50 };
+    // Legs (Shorts + Skin + Cleats)
+    const shortsGeo = new THREE.BoxGeometry(6, 9, 6);
+    const legSkinGeo = new THREE.BoxGeometry(4.5, 11, 4.5);
+    const bootGeo = new THREE.BoxGeometry(5.2, 7.5, 4.2);
+
+    const leftLegGroup = new THREE.Group();
+    leftLegGroup.position.set(-4.5, 0, -13);
+    const leftShort = new THREE.Mesh(shortsGeo, shortsMat);
+    leftLegGroup.add(leftShort);
+    const leftLegSkin = new THREE.Mesh(legSkinGeo, skinMat);
+    leftLegSkin.position.set(0, 0, -9);
+    leftLegSkin.castShadow = true;
+    leftLegGroup.add(leftLegSkin);
+    const leftBoot = new THREE.Mesh(bootGeo, bootMat);
+    leftBoot.position.set(0, 1.5, -15);
+    leftBoot.castShadow = true;
+    leftLegGroup.add(leftBoot);
+    torso.add(leftLegGroup);
+
+    const rightLegGroup = new THREE.Group();
+    rightLegGroup.position.set(4.5, 0, -13);
+    const rightShort = new THREE.Mesh(shortsGeo, shortsMat);
+    rightLegGroup.add(rightShort);
+    const rightLegSkin = new THREE.Mesh(legSkinGeo, skinMat);
+    rightLegSkin.position.set(0, 0, -9);
+    rightLegSkin.castShadow = true;
+    rightLegGroup.add(rightLegSkin);
+    const rightBoot = new THREE.Mesh(bootGeo, bootMat);
+    rightBoot.position.set(0, 1.5, -15);
+    rightBoot.castShadow = true;
+    rightLegGroup.add(rightBoot);
+    torso.add(rightLegGroup);
+
+    // Secondary Animation (Jersey flow tail)
+    const tailGeo = new THREE.PlaneGeometry(12, 10);
+    const tail = new THREE.Mesh(tailGeo, jerseyMat);
+    tail.position.set(0, -9, -10);
+    tail.rotation.x = -Math.PI / 4;
+    torso.add(tail);
+
+    group.userData = {
+        torso,
+        leftArm: leftArmGroup,
+        rightArm: rightArmGroup,
+        leftLeg: leftLegGroup,
+        rightLeg: rightLegGroup,
+        tail,
+        animTime: Math.random() * 50
+    };
     scene.add(group);
     playerMeshes[id] = group;
     return group;
 }
+
 
 // --- TOUCH CONTROLS ---
 function setupTouchControls() {
@@ -489,19 +662,21 @@ function initOfflinePhysics() {
     const userBody = Matter.Bodies.circle(-PITCH_WIDTH / 5, 0, PLAYER_RADIUS, {
         restitution: 0,
         frictionAir: 0.08,
-        density: 0.006
+        density: 0.006,
+        label: 'player_user'
     });
     localBodies.players['user'] = userBody;
-    createPlayerMesh('user', '#00ffcc');
+    createPlayerMesh('user', '#00ffcc', 'A');
 
-    // Bot Goalkeeper (Team B Magenta)
-    const botBody = Matter.Bodies.circle(PITCH_WIDTH / 2 - 120, 0, PLAYER_RADIUS, {
+    // Bot Goalkeeper (Team B Magenta - Locked on Goal Line)
+    const botBody = Matter.Bodies.circle(PITCH_WIDTH / 2 - 70, 0, PLAYER_RADIUS, {
         restitution: 0,
         frictionAir: 0.08,
-        density: 0.006
+        density: 0.006,
+        label: 'player_bot_b'
     });
     localBodies.players['bot_b'] = botBody;
-    createPlayerMesh('bot_b', '#ff00ff');
+    createPlayerMesh('bot_b', '#ff00ff', 'B');
 
     Matter.Composite.add(world, [
         ...localBodies.walls,
@@ -526,8 +701,12 @@ function initOfflinePhysics() {
 function offlineGameLoop() {
     if (!isGameActive || gameMode !== 'offline') return;
 
-    // Apply User Touch Input (Fast 0.5x enhanced forces)
+    const nowTime = performance.now();
     const userBody = localBodies.players['user'];
+    const botBody = localBodies.players['bot_b'];
+    const ball = localBodies.ball;
+
+    // Apply User Touch Input (Smooth, responsive mobile controls)
     if (userBody) {
         const force = inputState.btns.sprint ? 0.0068 : 0.0038;
         Matter.Body.applyForce(userBody, userBody.position, {
@@ -535,36 +714,102 @@ function offlineGameLoop() {
             y: inputState.y * force
         });
 
-        // Shooting
-        if (inputState.btns.shoot) {
-            const ball = localBodies.ball;
-            const dist = Matter.Vector.magnitude(Matter.Vector.sub(ball.position, userBody.position));
-            if (dist < PLAYER_RADIUS + BALL_RADIUS + 35) {
-                let dir = Matter.Vector.normalise(Matter.Vector.sub(ball.position, userBody.position));
-                if (Math.abs(inputState.x) > 0.1 || Math.abs(inputState.y) > 0.1) {
-                    dir = Matter.Vector.normalise({ x: inputState.x, y: inputState.y });
-                }
-                Matter.Body.applyForce(ball, ball.position, { x: dir.x * 0.014, y: dir.y * 0.014 });
+        // Shooting & Passing
+        if (inputState.btns.shoot || inputState.btns.pass) {
+            const dist = ball ? Matter.Vector.magnitude(Matter.Vector.sub(ball.position, userBody.position)) : 999;
+            if (dist < PLAYER_RADIUS + BALL_RADIUS + 35 || offlinePossessionId === 'user') {
+                offlinePossessionId = null;
+                offlinePossessionCooldown = nowTime + 400;
+
+                let dir = (Math.abs(inputState.x) > 0.1 || Math.abs(inputState.y) > 0.1)
+                    ? Matter.Vector.normalise({ x: inputState.x, y: inputState.y })
+                    : (ball ? Matter.Vector.normalise(Matter.Vector.sub(ball.position, userBody.position)) : { x: 1, y: 0 });
+
+                const kickForce = inputState.btns.shoot ? 0.022 : 0.012;
+                Matter.Body.applyForce(ball, ball.position, { x: dir.x * kickForce, y: dir.y * kickForce });
             }
         }
     }
 
-    // AI Goalkeeper Defense Logic
-    const botBody = localBodies.players['bot_b'];
-    const ball = localBodies.ball;
+    // --- FAIR BALL POSSESSION & DRIBBLE MECHANICS ---
+    if (ball) {
+        ['user', 'bot_b'].forEach(id => {
+            const body = localBodies.players[id];
+            if (!body) return;
+            const d = Matter.Vector.magnitude(Matter.Vector.sub(ball.position, body.position));
+            const touchRadius = PLAYER_RADIUS + BALL_RADIUS + 14;
+
+            if (d < touchRadius) {
+                if (!offlinePossessionId && nowTime > offlinePossessionCooldown) {
+                    offlinePossessionId = id;
+                } else if (offlinePossessionId && offlinePossessionId !== id && nowTime > offlinePossessionCooldown) {
+                    // Fair dispossession / steal contest
+                    const oppSpeed = Matter.Vector.magnitude(body.velocity);
+                    const isTackling = (id === 'user' && (inputState.btns.shoot || inputState.btns.pass)) || oppSpeed > 1.2;
+                    if (isTackling) {
+                        offlinePossessionId = id;
+                        offlinePossessionCooldown = nowTime + 350;
+                    }
+                }
+            }
+        });
+
+        // Tether ball smoothly to front of dribbler's feet
+        if (offlinePossessionId && localBodies.players[offlinePossessionId]) {
+            const pBody = localBodies.players[offlinePossessionId];
+            let angle = 0;
+            const spd = Matter.Vector.magnitude(pBody.velocity);
+            if (spd > 0.3) {
+                angle = Math.atan2(pBody.velocity.y, pBody.velocity.x);
+            } else {
+                angle = offlinePossessionId === 'user' ? 0 : Math.PI;
+            }
+
+            const frontOffset = PLAYER_RADIUS + BALL_RADIUS + 3;
+            const targetBx = pBody.position.x + Math.cos(angle) * frontOffset;
+            const targetBy = pBody.position.y + Math.sin(angle) * frontOffset;
+
+            const steerX = targetBx - ball.position.x;
+            const steerY = targetBy - ball.position.y;
+            Matter.Body.setVelocity(ball, {
+                x: pBody.velocity.x * 0.95 + steerX * 0.35,
+                y: pBody.velocity.y * 0.95 + steerY * 0.35
+            });
+        }
+    }
+
+    // --- BOT GOALKEEPER AI (Strictly confined to Goal Line) ---
     if (botBody && ball) {
-        const goalX = PITCH_WIDTH / 2 - 120;
+        const goalLineX = PITCH_WIDTH / 2 - 70;
+        const maxGoalY = GOAL_WIDTH / 2 - 15;
         let targetY = ball.position.y;
-        const boxLimit = GOAL_WIDTH / 2 + 80;
-        if (targetY < -boxLimit) targetY = -boxLimit;
-        if (targetY > boxLimit) targetY = boxLimit;
+        if (targetY < -maxGoalY) targetY = -maxGoalY;
+        if (targetY > maxGoalY) targetY = maxGoalY;
 
         const dy = targetY - botBody.position.y;
-        const dx = goalX - botBody.position.x;
-        Matter.Body.applyForce(botBody, botBody.position, {
-            x: dx * 0.0003,
-            y: dy * 0.0005
-        });
+        const dx = goalLineX - botBody.position.x;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        let inputX = 0;
+        let inputY = 0;
+        if (dist > 8) {
+            inputX = dx / dist;
+            inputY = dy / dist;
+        }
+
+        const distToBall = Matter.Vector.magnitude(Matter.Vector.sub(ball.position, botBody.position));
+        if (distToBall < PLAYER_RADIUS + BALL_RADIUS + 30) {
+            // Save & Clear shot away from goal
+            offlinePossessionId = null;
+            offlinePossessionCooldown = nowTime + 400;
+            const clearDir = Matter.Vector.normalise({ x: -1, y: (Math.random() - 0.5) * 0.6 });
+            Matter.Body.applyForce(ball, ball.position, { x: clearDir.x * 0.018, y: clearDir.y * 0.018 });
+        } else {
+            Matter.Body.applyForce(botBody, botBody.position, {
+                x: inputX * 0.005,
+                y: inputY * 0.005
+            });
+        }
     }
 
     // Step physics
@@ -579,7 +824,7 @@ function offlineGameLoop() {
         ballMesh.rotation.y += ball.velocity.x * 0.1;
     }
 
-    // Sync players
+    // Sync players with smooth anatomical animation
     Object.keys(localBodies.players).forEach(id => {
         const b = localBodies.players[id];
         const m = playerMeshes[id];
@@ -587,15 +832,24 @@ function offlineGameLoop() {
             m.position.x = b.position.x;
             m.position.y = -b.position.y;
             const spd = Matter.Vector.magnitude(b.velocity);
+            const data = m.userData;
+            data.animTime += spd * 0.1;
+
             if (spd > 0.4) {
                 const angle = Math.atan2(-b.velocity.y, b.velocity.x);
-                m.userData.torso.rotation.z = angle - Math.PI / 2;
-                m.userData.animTime += spd * 0.1;
-                const sw = Math.sin(m.userData.animTime);
-                m.userData.leftArm.position.y = sw * 5;
-                m.userData.rightArm.position.y = -sw * 5;
-                m.userData.leftLeg.position.y = -sw * 6;
-                m.userData.rightLeg.position.y = sw * 6;
+                data.torso.rotation.z = angle - Math.PI / 2;
+                const sw = Math.sin(data.animTime);
+                data.leftArm.position.y = sw * 5;
+                data.rightArm.position.y = -sw * 5;
+                data.leftLeg.position.y = -sw * 6;
+                data.rightLeg.position.y = sw * 6;
+                if (data.tail) data.tail.rotation.x = -Math.PI / 4 + Math.sin(data.animTime * 2) * 0.2;
+            } else {
+                data.leftArm.position.y = 0;
+                data.rightArm.position.y = 0;
+                data.leftLeg.position.y = 0;
+                data.rightLeg.position.y = 0;
+                if (data.tail) data.tail.rotation.x = -Math.PI / 4;
             }
         }
     });
@@ -625,6 +879,9 @@ function triggerGoal(team) {
 
     setTimeout(() => {
         // Reset positions to center
+        offlinePossessionId = null;
+        offlinePossessionCooldown = performance.now() + 1000;
+
         if (localBodies.ball) {
             Matter.Body.setPosition(localBodies.ball, { x: 0, y: 0 });
             Matter.Body.setVelocity(localBodies.ball, { x: 0, y: 0 });
@@ -634,7 +891,7 @@ function triggerGoal(team) {
             Matter.Body.setVelocity(localBodies.players['user'], { x: 0, y: 0 });
         }
         if (localBodies.players['bot_b']) {
-            Matter.Body.setPosition(localBodies.players['bot_b'], { x: PITCH_WIDTH / 2 - 120, y: 0 });
+            Matter.Body.setPosition(localBodies.players['bot_b'], { x: PITCH_WIDTH / 2 - 70, y: 0 });
             Matter.Body.setVelocity(localBodies.players['bot_b'], { x: 0, y: 0 });
         }
         isResetting = false;
@@ -734,7 +991,7 @@ function lanGameLoop() {
     Object.keys(targetPlayers).forEach(id => {
         const tp = targetPlayers[id];
         if (!playerMeshes[id]) {
-            createPlayerMesh(id, tp.color || (tp.team === 'A' ? '#00ffcc' : '#ff00ff'));
+            createPlayerMesh(id, tp.color || (tp.team === 'A' ? '#00ffcc' : '#ff00ff'), tp.team);
         }
         const m = playerMeshes[id];
         if (m) {
@@ -742,15 +999,24 @@ function lanGameLoop() {
             m.position.y += (tp.y - m.position.y) * 0.4;
 
             const spd = Math.sqrt(tp.vx * tp.vx + tp.vy * tp.vy);
+            const data = m.userData;
+            data.animTime += spd * 0.1;
+
             if (spd > 0.4) {
                 const angle = Math.atan2(tp.vy, tp.vx);
-                m.userData.torso.rotation.z = angle - Math.PI / 2;
-                m.userData.animTime += spd * 0.1;
-                const sw = Math.sin(m.userData.animTime);
-                m.userData.leftArm.position.y = sw * 5;
-                m.userData.rightArm.position.y = -sw * 5;
-                m.userData.leftLeg.position.y = -sw * 6;
-                m.userData.rightLeg.position.y = sw * 6;
+                data.torso.rotation.z = angle - Math.PI / 2;
+                const sw = Math.sin(data.animTime);
+                data.leftArm.position.y = sw * 5;
+                data.rightArm.position.y = -sw * 5;
+                data.leftLeg.position.y = -sw * 6;
+                data.rightLeg.position.y = sw * 6;
+                if (data.tail) data.tail.rotation.x = -Math.PI / 4 + Math.sin(data.animTime * 2) * 0.2;
+            } else {
+                data.leftArm.position.y = 0;
+                data.rightArm.position.y = 0;
+                data.leftLeg.position.y = 0;
+                data.rightLeg.position.y = 0;
+                if (data.tail) data.tail.rotation.x = -Math.PI / 4;
             }
         }
     });

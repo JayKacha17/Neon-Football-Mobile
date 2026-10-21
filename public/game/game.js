@@ -20,10 +20,13 @@ const announcer = document.getElementById('announcer');
 
 // Game State
 let score = { A: 0, B: 0 };
-let matchTimer = 180; // 3 minutes
+let matchTimer = 180; // Default 3 minutes
+let selectedMatchDuration = 180;
 let matchInterval;
 let lastSyncTime = 0;
 let lastScuffTime = 0;
+let possessionPlayerId = null;
+let possessionCooldown = 0;
 
 // Physics & Rendering Objects
 let engine, world;
@@ -117,6 +120,25 @@ function updateLobbyUI() {
     }
 }
 
+// Duration Selector Handler
+document.querySelectorAll('.duration-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.duration-btn').forEach(b => {
+            b.classList.remove('active');
+            b.style.borderColor = '#555';
+            b.style.color = '#fff';
+            b.style.background = 'rgba(0,0,0,0.5)';
+            b.style.boxShadow = 'none';
+        });
+        btn.classList.add('active');
+        btn.style.borderColor = '#00ffcc';
+        btn.style.color = '#00ffcc';
+        btn.style.background = 'rgba(0,255,204,0.25)';
+        btn.style.boxShadow = '0 0 15px rgba(0,255,204,0.4)';
+        selectedMatchDuration = parseInt(btn.dataset.time, 10) || 180;
+    });
+});
+
 startBtn.addEventListener('click', () => {
     // Fill with bots if less than 4 players
     const playerCount = Object.keys(players).length;
@@ -148,7 +170,7 @@ function startMatch() {
     score = { A: 0, B: 0 };
     updateScoreUI();
     
-    matchTimer = 180;
+    matchTimer = selectedMatchDuration;
     updateTimerUI();
     
     matchInterval = setInterval(() => {
@@ -542,66 +564,125 @@ function initRendering() {
     ballMesh.castShadow = true;
     scene.add(ballMesh);
     
-    // Player Meshes (Hierarchical Rigging)
+    // Player Meshes (High-Detail 3D Anatomy & Kits)
     Object.keys(playerBodies).forEach(id => {
         const p = players[id];
         if (!p) return;
         const colorHex = p.color || (p.team === 'A' ? '#00ffcc' : '#ff00ff');
-        const color = new THREE.Color(colorHex);
+        const teamColor = new THREE.Color(colorHex);
+        const shortsColor = new THREE.Color(p.team === 'A' ? 0x004438 : 0x440038);
         
-        // Sweat/Lighting material (High specular/roughness mapping equivalent)
-        const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdcb1, roughness: 0.3, metalness: 0.1 }); 
-        const clothMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.8, emissive: color.clone().multiplyScalar(0.2) });
+        // PBR Materials
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdcb1, roughness: 0.35, metalness: 0.05 }); 
+        const jerseyMat = new THREE.MeshStandardMaterial({ color: teamColor, roughness: 0.6, emissive: teamColor.clone().multiplyScalar(0.25) });
+        const shortsMat = new THREE.MeshStandardMaterial({ color: shortsColor, roughness: 0.7 });
+        const bootMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 });
+        const hairMat = new THREE.MeshStandardMaterial({ color: 0x241408, roughness: 0.85 });
+        const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
         
         const playerGroup = new THREE.Group();
         
-        // Torso (Leaner)
-        const torsoGeo = new THREE.BoxGeometry(16, 24, 10);
-        const torso = new THREE.Mesh(torsoGeo, clothMat);
-        torso.position.z = 25; // Height off ground
+        // Torso / Jersey (Athletic V-Shape)
+        const torsoGeo = new THREE.BoxGeometry(17, 24, 11);
+        const torso = new THREE.Mesh(torsoGeo, jerseyMat);
+        torso.position.z = 26; // Height off ground
         torso.castShadow = true;
         playerGroup.add(torso);
+
+        // Kit Number / Stripe on chest
+        const chestStripe = new THREE.Mesh(new THREE.PlaneGeometry(8, 12), stripeMat);
+        chestStripe.position.set(0, 5.6, 0);
+        chestStripe.rotation.x = Math.PI / 2;
+        torso.add(chestStripe);
         
-        // Head
-        const headGeo = new THREE.SphereGeometry(6, 16, 16);
+        // 3D Head with Hair
+        const headGeo = new THREE.SphereGeometry(6.5, 16, 16);
         const head = new THREE.Mesh(headGeo, skinMat);
-        head.position.set(0, 0, 15); // Relative to torso
+        head.position.set(0, 0, 16);
         head.castShadow = true;
         torso.add(head);
+
+        const hairGeo = new THREE.SphereGeometry(6.7, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+        const hair = new THREE.Mesh(hairGeo, hairMat);
+        hair.position.set(0, 0, 1.2);
+        head.add(hair);
         
-        // Arms
-        const armGeo = new THREE.BoxGeometry(4, 16, 4);
-        const leftArm = new THREE.Mesh(armGeo, skinMat);
-        leftArm.position.set(-10, 0, 0);
-        leftArm.castShadow = true;
-        torso.add(leftArm);
+        // Arms (Sleeves + Forearms)
+        const sleeveGeo = new THREE.BoxGeometry(4.5, 7, 4.5);
+        const forearmGeo = new THREE.BoxGeometry(4, 11, 4);
         
-        const rightArm = new THREE.Mesh(armGeo, skinMat);
-        rightArm.position.set(10, 0, 0);
-        rightArm.castShadow = true;
-        torso.add(rightArm);
+        const leftArmGroup = new THREE.Group();
+        leftArmGroup.position.set(-11, 0, 3);
+        const leftSleeve = new THREE.Mesh(sleeveGeo, jerseyMat);
+        leftSleeve.position.set(0, 0, -2);
+        leftArmGroup.add(leftSleeve);
+        const leftForearm = new THREE.Mesh(forearmGeo, skinMat);
+        leftForearm.position.set(0, 0, -10);
+        leftForearm.castShadow = true;
+        leftArmGroup.add(leftForearm);
+        torso.add(leftArmGroup);
         
-        // Legs
-        const legGeo = new THREE.BoxGeometry(5, 18, 5);
-        const leftLeg = new THREE.Mesh(legGeo, skinMat);
-        leftLeg.position.set(-4, 0, -20);
-        leftLeg.castShadow = true;
-        torso.add(leftLeg);
+        const rightArmGroup = new THREE.Group();
+        rightArmGroup.position.set(11, 0, 3);
+        const rightSleeve = new THREE.Mesh(sleeveGeo, jerseyMat);
+        rightSleeve.position.set(0, 0, -2);
+        rightArmGroup.add(rightSleeve);
+        const rightForearm = new THREE.Mesh(forearmGeo, skinMat);
+        rightForearm.position.set(0, 0, -10);
+        rightForearm.castShadow = true;
+        rightArmGroup.add(rightForearm);
+        torso.add(rightArmGroup);
         
-        const rightLeg = new THREE.Mesh(legGeo, skinMat);
-        rightLeg.position.set(4, 0, -20);
-        rightLeg.castShadow = true;
-        torso.add(rightLeg);
+        // Legs (Shorts + Skin + Cleats)
+        const shortsGeo = new THREE.BoxGeometry(6, 9, 6);
+        const legSkinGeo = new THREE.BoxGeometry(4.5, 11, 4.5);
+        const bootGeo = new THREE.BoxGeometry(5.2, 7.5, 4.2);
+
+        const leftLegGroup = new THREE.Group();
+        leftLegGroup.position.set(-4.5, 0, -13);
+        const leftShort = new THREE.Mesh(shortsGeo, shortsMat);
+        leftLegGroup.add(leftShort);
+        const leftLegSkin = new THREE.Mesh(legSkinGeo, skinMat);
+        leftLegSkin.position.set(0, 0, -9);
+        leftLegSkin.castShadow = true;
+        leftLegGroup.add(leftLegSkin);
+        const leftBoot = new THREE.Mesh(bootGeo, bootMat);
+        leftBoot.position.set(0, 1.5, -15);
+        leftBoot.castShadow = true;
+        leftLegGroup.add(leftBoot);
+        torso.add(leftLegGroup);
+        
+        const rightLegGroup = new THREE.Group();
+        rightLegGroup.position.set(4.5, 0, -13);
+        const rightShort = new THREE.Mesh(shortsGeo, shortsMat);
+        rightLegGroup.add(rightShort);
+        const rightLegSkin = new THREE.Mesh(legSkinGeo, skinMat);
+        rightLegSkin.position.set(0, 0, -9);
+        rightLegSkin.castShadow = true;
+        rightLegGroup.add(rightLegSkin);
+        const rightBoot = new THREE.Mesh(bootGeo, bootMat);
+        rightBoot.position.set(0, 1.5, -15);
+        rightBoot.castShadow = true;
+        rightLegGroup.add(rightBoot);
+        torso.add(rightLegGroup);
         
         // Secondary Animation (Jersey flow tail)
         const tailGeo = new THREE.PlaneGeometry(12, 10);
-        const tail = new THREE.Mesh(tailGeo, clothMat);
-        tail.position.set(0, -10, -10);
+        const tail = new THREE.Mesh(tailGeo, jerseyMat);
+        tail.position.set(0, -9, -10);
         tail.rotation.x = -Math.PI / 4;
         torso.add(tail);
         
         // Save references for animation
-        playerGroup.userData = { torso, leftArm, rightArm, leftLeg, rightLeg, tail, time: Math.random() * 100 };
+        playerGroup.userData = { 
+            torso, 
+            leftArm: leftArmGroup, 
+            rightArm: rightArmGroup, 
+            leftLeg: leftLegGroup, 
+            rightLeg: rightLegGroup, 
+            tail, 
+            time: Math.random() * 100 
+        };
         
         scene.add(playerGroup);
         playerMeshes[id] = playerGroup;
@@ -632,21 +713,42 @@ function applyInput(playerId, input) {
         y: iy * forceMagnitude
     });
     
-    // Shooting (if near ball)
+    // Shooting (Power Kick)
     if (btns.shoot && ballBody) {
         const dist = Matter.Vector.magnitude(Matter.Vector.sub(ballBody.position, body.position));
-        if (dist < PLAYER_RADIUS + BALL_RADIUS + 35) {
-            let dir = Matter.Vector.normalise(Matter.Vector.sub(ballBody.position, body.position));
+        if (dist < PLAYER_RADIUS + BALL_RADIUS + 40 || possessionPlayerId === playerId) {
+            possessionPlayerId = null;
+            possessionCooldown = performance.now() + 450;
             
-            // If moving joystick, use joystick direction for shot aim
-            if (Math.abs(ix) > 0.1 || Math.abs(iy) > 0.1) {
+            let dir = Matter.Vector.normalise(Matter.Vector.sub(ballBody.position, body.position));
+            if (Math.abs(ix) > 0.05 || Math.abs(iy) > 0.05) {
                 dir = Matter.Vector.normalise({ x: ix, y: iy });
             }
             
-            const kickForce = 0.014;
+            const kickForce = 0.018; // Crisp power shot
             Matter.Body.applyForce(ballBody, ballBody.position, {
                 x: dir.x * kickForce,
                 y: dir.y * kickForce
+            });
+        }
+    }
+
+    // Passing (Controlled Ground Pass)
+    if (btns.pass && ballBody) {
+        const dist = Matter.Vector.magnitude(Matter.Vector.sub(ballBody.position, body.position));
+        if (dist < PLAYER_RADIUS + BALL_RADIUS + 40 || possessionPlayerId === playerId) {
+            possessionPlayerId = null;
+            possessionCooldown = performance.now() + 400;
+            
+            let dir = Matter.Vector.normalise(Matter.Vector.sub(ballBody.position, body.position));
+            if (Math.abs(ix) > 0.05 || Math.abs(iy) > 0.05) {
+                dir = Matter.Vector.normalise({ x: ix, y: iy });
+            }
+            
+            const passForce = 0.010;
+            Matter.Body.applyForce(ballBody, ballBody.position, {
+                x: dir.x * passForce,
+                y: dir.y * passForce
             });
         }
     }
@@ -672,6 +774,8 @@ function handleGoal(team) {
 }
 
 function resetPositions() {
+    possessionPlayerId = null;
+    possessionCooldown = performance.now() + 1000;
     if (ballBody) {
         Matter.Body.setPosition(ballBody, { x: 0, y: 0 });
         Matter.Body.setVelocity(ballBody, { x: 0, y: 0 });
@@ -789,62 +893,109 @@ function gameLoop() {
         });
     }
     
-    // --- AI LOGIC ---
+    // --- FAIR BALL POSSESSION & DRIBBLE MECHANICS ---
+    const nowTime = performance.now();
+
+    // Check if any player enters possession radius or dispossesses the current holder
+    Object.keys(playerBodies).forEach(id => {
+        const body = playerBodies[id];
+        if (!body) return;
+        
+        const d = Matter.Vector.magnitude(Matter.Vector.sub(ballBody.position, body.position));
+        const touchRadius = PLAYER_RADIUS + BALL_RADIUS + 12;
+
+        if (d < touchRadius) {
+            if (!possessionPlayerId && nowTime > possessionCooldown) {
+                // Claim possession if ball is free
+                possessionPlayerId = id;
+            } else if (possessionPlayerId && possessionPlayerId !== id && nowTime > possessionCooldown) {
+                // Fair Dispossession / Steal Contest:
+                // An opponent can tackle or steal the ball if they contest it
+                const opp = players[id];
+                const holder = players[possessionPlayerId];
+                if (opp && holder && opp.team !== holder.team) {
+                    const oppSpeed = Matter.Vector.magnitude(body.velocity);
+                    const oppInput = currentInputs[id] || {};
+                    const isTackling = (oppInput.btns && (oppInput.btns.shoot || oppInput.btns.pass)) || oppSpeed > 1.2;
+                    
+                    if (isTackling) {
+                        // Successful tackle / steal!
+                        possessionPlayerId = id;
+                        possessionCooldown = nowTime + 350; // Brief contest immunity
+                    }
+                }
+            }
+        }
+    });
+
+    // If a player holds the ball, stick ball smoothly to their feet facing their run direction
+    if (possessionPlayerId && playerBodies[possessionPlayerId]) {
+        const pBody = playerBodies[possessionPlayerId];
+        const pData = players[possessionPlayerId] || {};
+        
+        let angle = 0;
+        const spd = Matter.Vector.magnitude(pBody.velocity);
+        if (spd > 0.3) {
+            angle = Math.atan2(pBody.velocity.y, pBody.velocity.x);
+        } else {
+            angle = pData.team === 'A' ? 0 : Math.PI;
+        }
+
+        const frontOffset = PLAYER_RADIUS + BALL_RADIUS + 3;
+        const targetBx = pBody.position.x + Math.cos(angle) * frontOffset;
+        const targetBy = pBody.position.y + Math.sin(angle) * frontOffset;
+
+        // Controlled dribble velocity matching player speed
+        const steerX = targetBx - ballBody.position.x;
+        const steerY = targetBy - ballBody.position.y;
+        Matter.Body.setVelocity(ballBody, {
+            x: pBody.velocity.x * 0.95 + steerX * 0.35,
+            y: pBody.velocity.y * 0.95 + steerY * 0.35
+        });
+    }
+
+    // --- AI LOGIC (PURE GOALKEEPER DEFENDERS - NEVER LEAVE GOAL) ---
     Object.keys(playerBodies).forEach(id => {
         const p = players[id];
         if (p && p.isBot && ballBody) {
             const body = playerBodies[id];
             
-            // Tactical Intelligence: Goalkeeper Mode
-            // Bots will prioritize defending their own goal rather than chasing the ball
-            const myGoalX = p.team === 'A' ? -PITCH_WIDTH/2 : PITCH_WIDTH/2;
-            const defLineX = p.team === 'A' ? myGoalX + 150 : myGoalX - 150; // Stand in front of goal
+            // Locked on goal line
+            const myGoalX = p.team === 'A' ? -PITCH_WIDTH/2 + 70 : PITCH_WIDTH/2 - 70;
             
-            // Track the ball's Y position to block shots, but stay inside the penalty box
-            let defLineY = ballBody.position.y;
-            const boxLimit = GOAL_WIDTH/2 + 100;
-            if (defLineY < -boxLimit) defLineY = -boxLimit;
-            if (defLineY > boxLimit) defLineY = boxLimit;
+            // Confine goalkeeper Y strictly between the goal posts
+            const maxGoalY = GOAL_WIDTH/2 - 15;
+            let targetY = ballBody.position.y;
+            if (targetY < -maxGoalY) targetY = -maxGoalY;
+            if (targetY > maxGoalY) targetY = maxGoalY;
             
-            let targetX = defLineX;
-            let targetY = defLineY;
-            
-            // If ball comes dangerously close to the goal, rush the ball to clear it
+            // X position stays strictly on the goal line
+            let targetX = myGoalX;
             const distToBall = Matter.Vector.magnitude(Matter.Vector.sub(ballBody.position, body.position));
-            if (distToBall < 350 && Math.abs(ballBody.position.x - myGoalX) < 400) {
-                targetX = ballBody.position.x;
-                targetY = ballBody.position.y;
-            }
             
-            // Calculate input to target
+            // Calculate movement to block the shot on goal line
             const dx = targetX - body.position.x;
             const dy = targetY - body.position.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
             
             let inputX = 0;
             let inputY = 0;
-            let sprint = false;
-            let shoot = false;
-            
-            if (dist > 20) {
+            if (dist > 8) {
                 inputX = dx / dist;
                 inputY = dy / dist;
-                if (dist > 200) sprint = true; // Sprint if far
             }
             
-            // Shoot if near ball and near enemy goal
-            if (dist < 60) {
-                const goalX = p.team === 'A' ? PITCH_WIDTH/2 : -PITCH_WIDTH/2;
-                if (Math.abs(body.position.x - goalX) < 500) {
-                    shoot = true;
-                    // Aim at goal
-                    inputX = (goalX - body.position.x) > 0 ? 1 : -1;
-                    inputY = (0 - body.position.y) > 0 ? 1 : -1;
-                }
+            // Clear ball outward if it approaches the goal
+            let shoot = false;
+            if (distToBall < PLAYER_RADIUS + BALL_RADIUS + 30) {
+                shoot = true;
+                possessionPlayerId = null;
+                possessionCooldown = nowTime + 400;
+                inputX = p.team === 'A' ? 1 : -1;
+                inputY = (Math.random() - 0.5) * 0.6;
             }
             
-            // Apply bot input
-            applyInput(id, { x: inputX, y: inputY, btns: { sprint, shoot } });
+            applyInput(id, { x: inputX, y: inputY, btns: { sprint: true, shoot } });
         }
     });
 

@@ -297,6 +297,33 @@ html, body {
     color: var(--magenta);
 }
 
+/* Settings Chips for Customize Modal */
+.setting-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.opt-chip {
+    flex: 1;
+    min-width: 90px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.opt-chip.active {
+    border-color: var(--cyan);
+    background: rgba(0, 255, 204, 0.25);
+    color: var(--cyan);
+    box-shadow: 0 0 12px var(--cyan-glow);
+}
+
 /* Guide Modal */
 .guide-box {
     border-color: #ffaa00;
@@ -442,13 +469,16 @@ html, body {
     transform: translate(-50%, -50%) scale(1.2);
 }
 
-/* Touch Controls */
+/* Touch Controls (Smooth, Large, Customizable) */
 #touch-joystick-zone {
     position: absolute;
-    bottom: 24px;
-    left: 24px;
-    width: 140px;
-    height: 140px;
+    bottom: var(--ctrl-bottom, 24px);
+    left: var(--joystick-left, 24px);
+    right: var(--joystick-right, auto);
+    width: 170px;
+    height: 170px;
+    transform: scale(var(--ctrl-scale, 1.2));
+    transform-origin: bottom left;
     pointer-events: auto;
     touch-action: none;
 }
@@ -458,9 +488,9 @@ html, body {
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(0, 255, 204, 0.08) 0%, rgba(255, 255, 255, 0.03) 70%);
-    border: 2px solid rgba(0, 255, 204, 0.35);
-    box-shadow: 0 0 20px rgba(0, 255, 204, 0.15) inset;
+    background: radial-gradient(circle, rgba(0, 255, 204, 0.12) 0%, rgba(255, 255, 255, 0.04) 70%);
+    border: 2.5px solid rgba(0, 255, 204, 0.45);
+    box-shadow: 0 0 25px rgba(0, 255, 204, 0.2) inset, 0 0 20px rgba(0, 0, 0, 0.6);
 }
 
 #virtual-stick-thumb {
@@ -468,20 +498,23 @@ html, body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 55px;
-    height: 55px;
+    width: 70px;
+    height: 70px;
     border-radius: 50%;
-    background: radial-gradient(circle, var(--cyan) 0%, rgba(0, 255, 204, 0.7) 100%);
-    box-shadow: 0 0 25px var(--cyan-glow);
+    background: radial-gradient(circle, var(--cyan) 0%, rgba(0, 200, 160, 0.9) 100%);
+    box-shadow: 0 0 30px var(--cyan-glow), 0 4px 10px rgba(0, 0, 0, 0.5);
     pointer-events: none;
 }
 
 #touch-action-zone {
     position: absolute;
-    bottom: 24px;
-    right: 24px;
-    width: 220px;
-    height: 170px;
+    bottom: var(--ctrl-bottom, 24px);
+    right: var(--action-right, 24px);
+    left: var(--action-left, auto);
+    width: 250px;
+    height: 190px;
+    transform: scale(var(--ctrl-scale, 1.2));
+    transform-origin: bottom right;
     pointer-events: auto;
     touch-action: none;
 }
@@ -493,31 +526,73 @@ html, body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-weight: 800;
+    font-weight: 900;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
     touch-action: none;
-    border: 2px solid;
+    border: 2.5px solid;
     transition: transform 0.08s ease, background 0.08s ease;
 }
 
 .touch-btn span {
-    font-size: 0.95rem;
+    font-size: 1.1rem;
     line-height: 1;
+    letter-spacing: 0.5px;
 }
 .touch-btn small {
-    font-size: 0.55rem;
-    opacity: 0.8;
-    margin-top: 2px;
+    font-size: 0.62rem;
+    opacity: 0.85;
+    margin-top: 3px;
+    font-weight: 700;
 }
 
 .shoot-btn {
-    bottom: 10px;
-    right: 80px;
-    width: 78px;
-    height: 78px;
+    bottom: 12px;
+    right: 95px;
+    width: 90px;
+    height: 90px;
     border-color: var(--cyan);
-    background: rgba(0, 255, 204, 0.15);
+    background: rgba(0, 255, 204, 0.22);
+    color: var(--cyan);
+}
+.shoot-btn:active, .shoot-btn.active {
+    background: var(--cyan);
+    color: #070714;
+    transform: scale(0.92);
+    box-shadow: 0 0 30px var(--cyan);
+}
+
+.pass-btn {
+    bottom: 12px;
+    right: 0px;
+    width: 82px;
+    height: 82px;
+    border-color: var(--magenta);
+    background: rgba(255, 0, 255, 0.22);
+    color: var(--magenta);
+}
+.pass-btn:active, .pass-btn.active {
+    background: var(--magenta);
+    color: #fff;
+    transform: scale(0.92);
+    box-shadow: 0 0 30px var(--magenta);
+}
+
+.sprint-btn {
+    bottom: 105px;
+    right: 38px;
+    width: 82px;
+    height: 82px;
+    border-color: #ffaa00;
+    background: rgba(255, 170, 0, 0.22);
+    color: #ffaa00;
+}
+.sprint-btn:active, .sprint-btn.active {
+    background: #ffaa00;
+    color: #070714;
+    transform: scale(0.92);
+    box-shadow: 0 0 30px #ffaa00;
+}
     color: var(--cyan);
 }
 .shoot-btn:active, .shoot-btn.active {

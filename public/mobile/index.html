@@ -48,10 +48,57 @@
                         </span>
                     </button>
 
+                    <button id="btn-customize-controls" class="cyber-btn primary" style="border-color: #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.3);">
+                        <span class="icon">🎮</span>
+                        <span class="btn-text">
+                            <strong>CUSTOMIZE CONTROLS & SIZE</strong>
+                            <small>Change button size, positions & handedness</small>
+                        </span>
+                    </button>
+
                     <button id="btn-hotspot-guide" class="cyber-btn ghost">
                         <span class="icon">💡</span>
                         <span>Hotspot Setup Guide (No Data / Internet)</span>
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customize Controls Modal -->
+        <div id="customize-modal" class="modal-overlay">
+            <div class="modal-content">
+                <h3>CUSTOMIZE CONTROLS</h3>
+                <p class="modal-hint">Tune button sizes and hand layout for your phone</p>
+
+                <div class="input-row">
+                    <label>Controller Size</label>
+                    <div class="setting-chips" id="ctrl-size-selector">
+                        <button type="button" class="opt-chip" data-scale="1.0">Normal (100%)</button>
+                        <button type="button" class="opt-chip active" data-scale="1.25">Large (125%)</button>
+                        <button type="button" class="opt-chip" data-scale="1.5">Giant (150%)</button>
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <label>Hand Layout (Positions)</label>
+                    <div class="setting-chips" id="ctrl-layout-selector">
+                        <button type="button" class="opt-chip active" data-layout="left">Left Thumbstick (Standard)</button>
+                        <button type="button" class="opt-chip" data-layout="right">Right Thumbstick (Inverted)</button>
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <label>Vertical Comfort Position</label>
+                    <div class="setting-chips" id="ctrl-height-selector">
+                        <button type="button" class="opt-chip active" data-bottom="20">Bottom</button>
+                        <button type="button" class="opt-chip" data-bottom="45">Comfort (+25px)</button>
+                        <button type="button" class="opt-chip" data-bottom="70">High (+50px)</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="btn-save-controls" class="cyber-btn primary">SAVE & APPLY</button>
+                    <button id="btn-close-customize" class="cyber-btn ghost">CLOSE</button>
                 </div>
             </div>
         </div>

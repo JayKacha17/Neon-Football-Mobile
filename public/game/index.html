@@ -56,6 +56,15 @@
                 <!-- Player cards injected here -->
             </div>
             
+            <!-- Match Duration Selector -->
+            <div id="duration-selector" style="margin-top: 30px; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.2rem; font-weight: bold; color: #00ffcc; text-transform: uppercase; letter-spacing: 1px;">Match Time:</span>
+                <button type="button" class="duration-btn" data-time="60" style="padding: 10px 18px; font-size: 1.1rem; border-radius: 20px; border: 2px solid #555; background: rgba(0,0,0,0.5); color: #fff; cursor: pointer; font-weight: bold; transition: all 0.2s;">1 MIN</button>
+                <button type="button" class="duration-btn" data-time="120" style="padding: 10px 18px; font-size: 1.1rem; border-radius: 20px; border: 2px solid #555; background: rgba(0,0,0,0.5); color: #fff; cursor: pointer; font-weight: bold; transition: all 0.2s;">2 MIN</button>
+                <button type="button" class="duration-btn active" data-time="180" style="padding: 10px 18px; font-size: 1.1rem; border-radius: 20px; border: 2px solid #00ffcc; background: rgba(0,255,204,0.25); color: #00ffcc; cursor: pointer; font-weight: bold; box-shadow: 0 0 15px rgba(0,255,204,0.4); transition: all 0.2s;">3 MIN</button>
+                <button type="button" class="duration-btn" data-time="300" style="padding: 10px 18px; font-size: 1.1rem; border-radius: 20px; border: 2px solid #555; background: rgba(0,0,0,0.5); color: #fff; cursor: pointer; font-weight: bold; transition: all 0.2s;">5 MIN</button>
+            </div>
+            
             <button id="start-btn" disabled>Waiting for players...</button>
         </div>
         

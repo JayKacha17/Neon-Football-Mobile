@@ -32,6 +32,9 @@ let matchTimer = 180;
 let matchInterval = null;
 let score = { A: 0, B: 0 };
 let isResetting = false;
+let targetBall = { x: 0, y: 0 };
+let targetPlayers = {};
+let lastMobileInputSend = 0;
 
 // Touch Inputs
 let inputState = {
@@ -673,34 +676,23 @@ function connectToLanMatch(name, code, customIp) {
     socket.on('game_state_update', (state) => {
         if (!isGameActive) return;
         
-        // Update Ball
-        if (state.ball && ballMesh) {
-            ballMesh.position.x = state.ball.x;
-            ballMesh.position.y = -state.ball.y;
-            ballMesh.position.z = BALL_RADIUS;
+        // Target Ball position
+        if (state.ball) {
+            targetBall.x = state.ball.x;
+            targetBall.y = -state.ball.y;
         }
 
-        // Update Players
+        // Target Players
         if (state.players) {
             state.players.forEach(p => {
-                if (!playerMeshes[p.id]) {
-                    createPlayerMesh(p.id, p.color || (p.team === 'A' ? '#00ffcc' : '#ff00ff'));
-                }
-                const m = playerMeshes[p.id];
-                m.position.x = p.x;
-                m.position.y = -p.y;
-
-                const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-                if (spd > 0.4) {
-                    const angle = Math.atan2(-p.vy, p.vx);
-                    m.userData.torso.rotation.z = angle - Math.PI / 2;
-                    m.userData.animTime += spd * 0.1;
-                    const sw = Math.sin(m.userData.animTime);
-                    m.userData.leftArm.position.y = sw * 5;
-                    m.userData.rightArm.position.y = -sw * 5;
-                    m.userData.leftLeg.position.y = -sw * 6;
-                    m.userData.rightLeg.position.y = sw * 6;
-                }
+                targetPlayers[p.id] = {
+                    x: p.x,
+                    y: -p.y,
+                    vx: p.vx,
+                    vy: p.vy,
+                    color: p.color,
+                    team: p.team
+                };
             });
         }
 
@@ -724,10 +716,44 @@ function connectToLanMatch(name, code, customIp) {
 function lanGameLoop() {
     if (!isGameActive || gameMode !== 'lan') return;
 
-    // Send touch controls to LAN Host
-    if (socket && socket.connected) {
+    // Send touch controls to LAN Host throttled (60fps max ~16ms)
+    const now = performance.now();
+    if (socket && socket.connected && (now - lastMobileInputSend >= 16)) {
+        lastMobileInputSend = now;
         socket.emit('controller_input', inputState);
     }
+
+    // Smoothly interpolate Ball position
+    if (ballMesh) {
+        ballMesh.position.x += (targetBall.x - ballMesh.position.x) * 0.45;
+        ballMesh.position.y += (targetBall.y - ballMesh.position.y) * 0.45;
+        ballMesh.position.z = BALL_RADIUS;
+    }
+
+    // Smoothly interpolate Player positions and anims
+    Object.keys(targetPlayers).forEach(id => {
+        const tp = targetPlayers[id];
+        if (!playerMeshes[id]) {
+            createPlayerMesh(id, tp.color || (tp.team === 'A' ? '#00ffcc' : '#ff00ff'));
+        }
+        const m = playerMeshes[id];
+        if (m) {
+            m.position.x += (tp.x - m.position.x) * 0.4;
+            m.position.y += (tp.y - m.position.y) * 0.4;
+
+            const spd = Math.sqrt(tp.vx * tp.vx + tp.vy * tp.vy);
+            if (spd > 0.4) {
+                const angle = Math.atan2(tp.vy, tp.vx);
+                m.userData.torso.rotation.z = angle - Math.PI / 2;
+                m.userData.animTime += spd * 0.1;
+                const sw = Math.sin(m.userData.animTime);
+                m.userData.leftArm.position.y = sw * 5;
+                m.userData.rightArm.position.y = -sw * 5;
+                m.userData.leftLeg.position.y = -sw * 6;
+                m.userData.rightLeg.position.y = sw * 6;
+            }
+        }
+    });
 
     // Camera follow user player if available
     const myMesh = playerMeshes[myPlayerId];

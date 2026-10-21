@@ -22,6 +22,8 @@ const announcer = document.getElementById('announcer');
 let score = { A: 0, B: 0 };
 let matchTimer = 180; // 3 minutes
 let matchInterval;
+let lastSyncTime = 0;
+let lastScuffTime = 0;
 
 // Physics & Rendering Objects
 let engine, world;
@@ -543,7 +545,9 @@ function initRendering() {
     // Player Meshes (Hierarchical Rigging)
     Object.keys(playerBodies).forEach(id => {
         const p = players[id];
-        const color = new THREE.Color(p.color);
+        if (!p) return;
+        const colorHex = p.color || (p.team === 'A' ? '#00ffcc' : '#ff00ff');
+        const color = new THREE.Color(colorHex);
         
         // Sweat/Lighting material (High specular/roughness mapping equivalent)
         const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdcb1, roughness: 0.3, metalness: 0.1 }); 
@@ -616,29 +620,30 @@ function onWindowResize() {
 
 function applyInput(playerId, input) {
     const body = playerBodies[playerId];
-    if (!body) return;
+    if (!body || !input) return;
     
-    // Increased force for even faster gameplay
-    const forceMagnitude = input.btns.sprint ? 0.0068 : 0.0038;
+    const btns = input.btns || {};
+    const forceMagnitude = btns.sprint ? 0.0068 : 0.0038;
+    const ix = Number(input.x) || 0;
+    const iy = Number(input.y) || 0;
     
     Matter.Body.applyForce(body, body.position, {
-        x: input.x * forceMagnitude,
-        y: input.y * forceMagnitude
+        x: ix * forceMagnitude,
+        y: iy * forceMagnitude
     });
     
     // Shooting (if near ball)
-    if (input.btns.shoot) {
+    if (btns.shoot && ballBody) {
         const dist = Matter.Vector.magnitude(Matter.Vector.sub(ballBody.position, body.position));
-        if (dist < PLAYER_RADIUS + BALL_RADIUS + 30) {
-            // Calculate kick direction (from player to ball)
+        if (dist < PLAYER_RADIUS + BALL_RADIUS + 35) {
             let dir = Matter.Vector.normalise(Matter.Vector.sub(ballBody.position, body.position));
             
             // If moving joystick, use joystick direction for shot aim
-            if (Math.abs(input.x) > 0.1 || Math.abs(input.y) > 0.1) {
-                dir = Matter.Vector.normalise({ x: input.x, y: input.y });
+            if (Math.abs(ix) > 0.1 || Math.abs(iy) > 0.1) {
+                dir = Matter.Vector.normalise({ x: ix, y: iy });
             }
             
-            const kickForce = 0.012; // Adjusted for new ball mass
+            const kickForce = 0.014;
             Matter.Body.applyForce(ballBody, ballBody.position, {
                 x: dir.x * kickForce,
                 y: dir.y * kickForce
@@ -667,15 +672,21 @@ function handleGoal(team) {
 }
 
 function resetPositions() {
-    Matter.Body.setPosition(ballBody, { x: 0, y: 0 });
-    Matter.Body.setVelocity(ballBody, { x: 0, y: 0 });
+    if (ballBody) {
+        Matter.Body.setPosition(ballBody, { x: 0, y: 0 });
+        Matter.Body.setVelocity(ballBody, { x: 0, y: 0 });
+    }
     
     const teamA = [];
     const teamB = [];
     
     Object.keys(playerBodies).forEach(id => {
-        if (players[id].team === 'A') teamA.push(playerBodies[id]);
-        else teamB.push(playerBodies[id]);
+        const p = players[id];
+        const b = playerBodies[id];
+        if (p && b) {
+            if (p.team === 'A') teamA.push(b);
+            else teamB.push(b);
+        }
     });
     
     teamA.forEach((body, index) => {
@@ -822,9 +833,9 @@ function gameLoop() {
             }
             
             // Shoot if near ball and near enemy goal
-            if (dist < 50 && !isWinning) {
+            if (dist < 60) {
                 const goalX = p.team === 'A' ? PITCH_WIDTH/2 : -PITCH_WIDTH/2;
-                if (Math.abs(body.position.x - goalX) < 400) {
+                if (Math.abs(body.position.x - goalX) < 500) {
                     shoot = true;
                     // Aim at goal
                     inputX = (goalX - body.position.x) > 0 ? 1 : -1;
@@ -837,6 +848,8 @@ function gameLoop() {
         }
     });
 
+    const now = performance.now();
+
     Object.keys(playerBodies).forEach(id => {
         const body = playerBodies[id];
         const meshGroup = playerMeshes[id];
@@ -847,9 +860,9 @@ function gameLoop() {
             
             const speed = Matter.Vector.magnitude(body.velocity);
             
-            // Living Pitch: Draw Scuff Marks on high speed or sharp turns
-            if (speed > 2.5 && window.pitchCtx) {
-                // Map from Matter world to Canvas (2048x2048)
+            // Living Pitch: Throttle texture uploads (saves GPU on mobile/laptops)
+            if (speed > 2.8 && window.pitchCtx && (now - lastScuffTime > 300)) {
+                lastScuffTime = now;
                 const cx = (body.position.x / PITCH_WIDTH) * 2048 + 1024;
                 const cy = (body.position.y / PITCH_WIDTH) * 2048 + 1024; 
                 
@@ -901,8 +914,9 @@ function gameLoop() {
     
     renderer.render(scene, camera);
     
-    // Broadcast live game state to all connected mobile clients
-    if (socket && socket.connected && ballBody) {
+    // Broadcast live game state to mobile clients at 30Hz (Ultra-Low Latency, no bufferbloat)
+    if (socket && socket.connected && ballBody && (now - lastSyncTime >= 33)) {
+        lastSyncTime = now;
         const pState = Object.keys(playerBodies).map(id => {
             const b = playerBodies[id];
             const p = players[id] || {};
@@ -910,8 +924,8 @@ function gameLoop() {
                 id,
                 x: Math.round(b.position.x),
                 y: Math.round(b.position.y),
-                vx: Number(b.velocity.x.toFixed(2)),
-                vy: Number(b.velocity.y.toFixed(2)),
+                vx: Number(b.velocity.x.toFixed(1)),
+                vy: Number(b.velocity.y.toFixed(1)),
                 team: p.team,
                 number: p.number,
                 username: p.username,
@@ -923,8 +937,8 @@ function gameLoop() {
             ball: {
                 x: Math.round(ballBody.position.x),
                 y: Math.round(ballBody.position.y),
-                vx: Number(ballBody.velocity.x.toFixed(2)),
-                vy: Number(ballBody.velocity.y.toFixed(2))
+                vx: Number(ballBody.velocity.x.toFixed(1)),
+                vy: Number(ballBody.velocity.y.toFixed(1))
             },
             players: pState,
             score,
